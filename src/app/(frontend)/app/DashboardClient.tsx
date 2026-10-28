@@ -41,6 +41,25 @@ function formatRecordedTime(value?: string | null) {
   } UTC`
 }
 
+function getWaitDetails(
+  task: ProductionRun["tasks"][number],
+  currentNow: number,
+) {
+  if (task.state !== "WAITING" || !task.waitingStartedAt) return null
+  const started = new Date(task.waitingStartedAt).getTime()
+  if (isNaN(started)) return null
+  const elapsedMinutes = Math.max(0, Math.floor((currentNow - started) / 60000))
+  const expected = task.expectedMinutes ?? 45
+  const isReady = elapsedMinutes >= expected
+  const remaining = Math.max(0, expected - elapsedMinutes)
+  return {
+    elapsedMinutes,
+    expected,
+    isReady,
+    remaining,
+  }
+}
+
 export default function DashboardClient({
   runs,
   pendingActions,
@@ -54,6 +73,12 @@ export default function DashboardClient({
   const currentRuns = runs?.length ? runs : (data.runs as ProductionRun[])
   const [actionError, setActionError] = useState("")
   const [selected, setSelected] = useState(currentRuns[0]?.id ?? "")
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const ticker = setInterval(() => setNow(Date.now()), 10000)
+    return () => clearInterval(ticker)
+  }, [])
 
   useEffect(() => {
     function handleSelectRun(e: Event) {
@@ -187,7 +212,27 @@ export default function DashboardClient({
                     className={`state-dot state-${task.state.toLowerCase()}`}
                   />
                   <div className="task-copy">
-                    <strong>{task.name}</strong>
+                    <div className="task-title-row">
+                      <strong>{task.name}</strong>
+                      {(() => {
+                        const waitDetails = getWaitDetails(task, now)
+                        if (!waitDetails) return null
+                        return (
+                          <span
+                            className={`wait-live-tag ${
+                              waitDetails.isReady
+                                ? "wait-live-tag--ready"
+                                : "wait-live-tag--timing"
+                            }`}
+                          >
+                            <span className="wait-pulse-dot" />
+                            {waitDetails.isReady
+                              ? `${task.waitingReason ?? "Wait"} target reached (${waitDetails.elapsedMinutes}m) · Inspection due`
+                              : `${task.waitingReason ?? "Wait"} · ~${waitDetails.remaining}m remaining (${waitDetails.elapsedMinutes}m elapsed)`}
+                          </span>
+                        )
+                      })()}
+                    </div>
                     <span>
                       {task.state === "BLOCKED"
                         ? task.blockedReason

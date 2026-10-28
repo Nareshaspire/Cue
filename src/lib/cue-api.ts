@@ -92,3 +92,36 @@ export async function confirmPendingUpdate(
   }
   return json
 }
+
+export function subscribeToRunStream(
+  onEvent: (event: any) => void,
+  onStatusChange?: (connected: boolean) => void,
+): () => void {
+  if (typeof window === "undefined" || !("EventSource" in window)) {
+    return () => {}
+  }
+
+  const es = new EventSource("/api/runs/stream/")
+
+  es.onopen = () => {
+    onStatusChange?.(true)
+  }
+
+  es.onmessage = (messageEvent) => {
+    try {
+      const data = JSON.parse(messageEvent.data)
+      onEvent(data)
+    } catch {
+      // Ignore comments / non-JSON messages
+    }
+  }
+
+  es.onerror = () => {
+    onStatusChange?.(false)
+  }
+
+  return () => {
+    es.close()
+    onStatusChange?.(false)
+  }
+}

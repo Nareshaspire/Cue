@@ -90,6 +90,7 @@ All endpoints return JSON and are hosted at `/api/*`.
 
 ### 2. Production Runs
 - **`GET /api/runs/`**: Lists all active production runs, current operator, and pending proposals.
+- **`GET /api/runs/stream/`**: Real-time Server-Sent Events (SSE) stream broadcasting live batch updates, pending proposals, and confirmations to all connected kitchen screens.
 - **`POST /api/runs/`**: Initializes a new production batch.
   ```json
   // Request

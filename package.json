@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "next build",
+    "build": "next build --webpack",
     "preview": "wrangler pages dev out",
     "deploy": "wrangler pages deploy out",
     "test": "tsx --test tests/*.test.mjs",

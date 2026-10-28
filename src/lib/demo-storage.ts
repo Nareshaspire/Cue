@@ -13,6 +13,21 @@ const STORAGE_KEY = "cue-demo-state-v1"
 const CREDENTIALS_KEY = "cue-demo-credentials-v1"
 let state = createInitialDemoState()
 let hydrated = false
+let syncChannel: BroadcastChannel | null = null
+
+if (
+  typeof window !== "undefined" &&
+  typeof (window as any).document !== "undefined" &&
+  typeof BroadcastChannel !== "undefined"
+) {
+  try {
+    syncChannel = new BroadcastChannel("cue_production_sync")
+    if ("unref" in syncChannel && typeof (syncChannel as any).unref === "function") {
+      ;(syncChannel as any).unref()
+    }
+  } catch {}
+}
+
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((listener) => listener())
 const subscribe = (listener: () => void) => {
@@ -79,6 +94,9 @@ function persist(next: DemoState) {
   } catch {
     // The in-memory demo remains usable when the browser blocks persistence.
   }
+  try {
+    syncChannel?.postMessage({ type: "SYNC_DEMO_STATE", state: next })
+  } catch {}
   emit()
 }
 
@@ -97,6 +115,27 @@ export function hydrateDemoState() {
   const stored = readStored()
   if (stored) state = stored
   hydrated = true
+
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    try {
+      window.addEventListener("storage", (e) => {
+        if (e.key === STORAGE_KEY) {
+          const fresh = readStored()
+          if (fresh) {
+            state = fresh
+            emit()
+          }
+        }
+      })
+      syncChannel?.addEventListener("message", (e) => {
+        if (e.data?.type === "SYNC_DEMO_STATE" && e.data?.state) {
+          state = e.data.state
+          emit()
+        }
+      })
+    } catch {}
+  }
+
   emit()
 }
 

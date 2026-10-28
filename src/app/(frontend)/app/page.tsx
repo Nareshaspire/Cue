@@ -11,7 +11,12 @@ import {
   signOutDemo,
   useDemoState,
 } from "@/lib/demo-storage"
-import { fetchRuns, confirmPendingUpdate, createRunApi } from "@/lib/cue-api"
+import {
+  fetchRuns,
+  confirmPendingUpdate,
+  createRunApi,
+  subscribeToRunStream,
+} from "@/lib/cue-api"
 import DashboardClient from "./DashboardClient"
 
 export default function AppPage() {
@@ -20,6 +25,7 @@ export default function AppPage() {
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([])
   const [message, setMessage] = useState("")
   const [userName, setUserName] = useState("Lead Baker")
+  const [isLiveConnected, setIsLiveConnected] = useState(false)
 
   const loadData = async () => {
     try {
@@ -40,6 +46,34 @@ export default function AppPage() {
 
   useEffect(() => {
     void loadData()
+
+    // Real-time server stream subscription
+    const unsubscribe = subscribeToRunStream(
+      (event) => {
+        if (Array.isArray(event.runs) && event.runs.length) {
+          setRuns(event.runs)
+        }
+        if (Array.isArray(event.pendingActions)) {
+          setPendingActions(event.pendingActions)
+        }
+        if (event.type === "TASK_CONFIRMED") {
+          setMessage(
+            event.confirmed
+              ? "Task update confirmed in real time."
+              : "Proposed update cancelled.",
+          )
+        } else if (event.type === "TASK_PROPOSED") {
+          setMessage("New task transition proposed for review.")
+        }
+      },
+      (connected) => {
+        setIsLiveConnected(connected)
+      },
+    )
+
+    return () => {
+      unsubscribe()
+    }
   }, [])
 
   // Use server runs/pending if available, otherwise fallback to local demo-storage
@@ -115,7 +149,22 @@ export default function AppPage() {
       <div className="app-shell">
         <div className="app-title">
           <div>
-            <p className="eyebrow">Production board · Connected & responsive</p>
+            <div className="eyebrow-row">
+              <p className="eyebrow">Production board · Connected & responsive</p>
+              <span
+                className={`live-sync-badge ${
+                  isLiveConnected ? "is-live" : "is-connecting"
+                }`}
+                title={
+                  isLiveConnected
+                    ? "Real-time kitchen stream connected via SSE"
+                    : "Connecting to real-time production stream..."
+                }
+              >
+                <span className="live-pulse-dot" />
+                {isLiveConnected ? "Live Kitchen Stream" : "Connecting..."}
+              </span>
+            </div>
             <h1>Good work starts with a clear next step.</h1>
             <p>Updates are validated in real time before they are applied.</p>
           </div>

@@ -5,6 +5,7 @@ import { createInitialDemoState, demoProducts } from "./demo-data"
 import type { DemoState } from "./demo-data"
 import type { PendingAction, ProductionRun } from "./demo-types"
 import { validateTransition } from "./workflow"
+import { broadcastCueEvent } from "./events"
 
 const STORE_DIR = path.join(process.cwd(), "data")
 const STORE_PATH = path.join(STORE_DIR, "cue.sqlite")
@@ -208,6 +209,14 @@ export function proposeTaskUpdate(
     pendingActions: [...store.pendingActions, pendingAction],
   }
   saveStore(nextStore)
+  broadcastCueEvent({
+    type: "TASK_PROPOSED",
+    runId: run.id,
+    taskKey,
+    pendingAction,
+    runs: nextStore.runs,
+    pendingActions: nextStore.pendingActions,
+  })
   return { ok: true as const, pendingAction }
 }
 
@@ -248,6 +257,14 @@ export function confirmPendingUpdate(id: string, confirm: boolean) {
       ),
     }
     saveStore(nextStore)
+    broadcastCueEvent({
+      type: "TASK_CONFIRMED",
+      runId: run.id,
+      taskKey: pending.taskKey,
+      confirmed: false,
+      runs: nextStore.runs,
+      pendingActions: nextStore.pendingActions,
+    })
     return { ok: true as const }
   }
 
@@ -332,6 +349,14 @@ export function confirmPendingUpdate(id: string, confirm: boolean) {
   }
 
   saveStore(nextStore)
+  broadcastCueEvent({
+    type: "TASK_CONFIRMED",
+    runId: run.id,
+    taskKey: task.taskKey,
+    confirmed: true,
+    runs: nextStore.runs,
+    pendingActions: nextStore.pendingActions,
+  })
   return { ok: true as const }
 }
 
@@ -342,6 +367,11 @@ export function getPendingActions() {
 export function resetStoreToDemo() {
   const seeded = defaultStore()
   saveStore(seeded)
+  broadcastCueEvent({
+    type: "STATE_RESET",
+    runs: seeded.runs,
+    pendingActions: seeded.pendingActions,
+  })
   return seeded
 }
 
@@ -393,6 +423,12 @@ export function createRun(
     runs: [...store.runs, newRun],
   }
   saveStore(nextStore)
+  broadcastCueEvent({
+    type: "RUN_CREATED",
+    runId: newRun.id,
+    runs: nextStore.runs,
+    pendingActions: nextStore.pendingActions,
+  })
   return newRun
 }
 
@@ -409,5 +445,11 @@ export function deleteRun(runId: string): boolean {
     pendingActions: store.pendingActions.filter((p) => p.productionRun !== target.id),
   }
   saveStore(nextStore)
+  broadcastCueEvent({
+    type: "RUN_DELETED",
+    runId: target.id,
+    runs: nextStore.runs,
+    pendingActions: nextStore.pendingActions,
+  })
   return true
 }
